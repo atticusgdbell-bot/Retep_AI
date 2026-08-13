@@ -56,27 +56,10 @@ if 'processed_files' not in st.session_state:
 
 files = st.file_uploader(
     'Upload files',
-    type=[
-        'txt', 'log', 'pdf',
-        'md', 'markdown',
-        'csv',
-        'json',
-        'yaml', 'yml',
-        'py',
-        'js', 'ts',
-        'html', 'htm',
-        'css',
-        'xml',
-        'toml',
-        'ini', 'cfg',
-        'sql',
-        'sh',
-        'bat', 'ps1'
-    ],
-    accept_multiple_files=True
+    type=None,
+    accept_multiple_files=True,
+    key='knowledge_upload_v2'
 )
-
-
 # Read a file
 
 def read_file(file_bytes, filename):
