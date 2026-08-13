@@ -6,6 +6,7 @@ import chromadb
 import uuid
 import hashlib
 
+from groq import Groq
 from pypdf import PdfReader
 from io import BytesIO
 
@@ -63,6 +64,16 @@ PROVIDER, MODEL = MODELS[selected_model]
 st.caption(f'Current model: {selected_model}')
 
 
+# Groq client
+
+if GROQ_API_KEY:
+    groq_client = Groq(
+        api_key=GROQ_API_KEY
+    )
+else:
+    groq_client = None
+
+
 # Session state
 
 if 'messages' not in st.session_state:
@@ -72,7 +83,9 @@ if 'chroma_client' not in st.session_state:
     st.session_state.chroma_client = chromadb.Client()
 
 if 'collection_name' not in st.session_state:
-    st.session_state.collection_name = 'docs_' + uuid.uuid4().hex[:12]
+    st.session_state.collection_name = (
+        'docs_' + uuid.uuid4().hex[:12]
+    )
 
 if 'collection' not in st.session_state:
     st.session_state.collection = (
@@ -105,23 +118,37 @@ def read_file(file_bytes, filename):
     )
 
     if extension == 'pdf':
-        reader = PdfReader(BytesIO(file_bytes))
+        reader = PdfReader(
+            BytesIO(file_bytes)
+        )
+
         pages = []
 
         for page in reader.pages:
-            page_text = page.extract_text() or ''
+            page_text = (
+                page.extract_text()
+                or ''
+            )
 
             if page_text.strip():
-                pages.append(page_text)
+                pages.append(
+                    page_text
+                )
 
-        return '\n\n'.join(pages)
+        return '\n\n'.join(
+            pages
+        )
 
     try:
-        return file_bytes.decode('utf-8')
+        return file_bytes.decode(
+            'utf-8'
+        )
 
     except UnicodeDecodeError:
         try:
-            return file_bytes.decode('cp1252')
+            return file_bytes.decode(
+                'cp1252'
+            )
 
         except UnicodeDecodeError:
             return file_bytes.decode(
@@ -142,12 +169,15 @@ if files and st.button('Process Files'):
         for file in files:
             try:
                 file_bytes = file.getvalue()
+
                 file_hash = hashlib.sha256(
                     file_bytes
                 ).hexdigest()
 
                 if file_hash in st.session_state.processed_files:
-                    skipped_files.append(file.name)
+                    skipped_files.append(
+                        file.name
+                    )
                     continue
 
                 text = read_file(
@@ -176,11 +206,15 @@ if files and st.button('Process Files'):
                     ].strip()
 
                     if chunk:
-                        chunks.append(chunk)
+                        chunks.append(
+                            chunk
+                        )
 
                 ids = [
                     f'{file_hash}_{i}'
-                    for i in range(len(chunks))
+                    for i in range(
+                        len(chunks)
+                    )
                 ]
 
                 metadatas = [
@@ -189,7 +223,9 @@ if files and st.button('Process Files'):
                         'file_hash': file_hash,
                         'chunk': i
                     }
-                    for i in range(len(chunks))
+                    for i in range(
+                        len(chunks)
+                    )
                 ]
 
                 collection.add(
@@ -202,8 +238,13 @@ if files and st.button('Process Files'):
                     file_hash
                 ] = file.name
 
-                total_new_chunks += len(chunks)
-                added_files.append(file.name)
+                total_new_chunks += len(
+                    chunks
+                )
+
+                added_files.append(
+                    file.name
+                )
 
             except Exception as e:
                 st.error(
@@ -234,14 +275,19 @@ if st.session_state.processed_files:
         f'Knowledge base: {len(file_names)} file(s)'
     )
 
-    with st.expander('Files in knowledge base'):
+    with st.expander(
+        'Files in knowledge base'
+    ):
         for name in file_names:
             st.write(name)
 
 
 # Build current prompt
 
-def build_current_prompt(context, question):
+def build_current_prompt(
+    context,
+    question
+):
     if not context:
         return question
 
@@ -261,7 +307,10 @@ You may answer normally using your general knowledge when the retrieved informat
 
 # Gemini messages
 
-def gemini_messages(context, question):
+def gemini_messages(
+    context,
+    question
+):
     contents = []
 
     for message in st.session_state.messages[:-1]:
@@ -297,18 +346,21 @@ def gemini_messages(context, question):
 
 # Groq messages
 
-def groq_messages(context, question):
+def groq_messages(
+    context,
+    question
+):
     messages = [
         {
             'role': 'system',
             'content': (
                 'You are Retep AI. '
                 'Answer normally and conversationally. '
-                'You may receive information retrieved from '
-                'the user knowledge base. '
+                'You may receive information retrieved '
+                'from the user knowledge base. '
                 'Use that information when relevant. '
-                'Do not pretend retrieved information contains '
-                'something that it does not.'
+                'Do not pretend retrieved information '
+                'contains something that it does not.'
             )
         }
     ]
@@ -332,7 +384,10 @@ def groq_messages(context, question):
 
 # Gemini response
 
-def gemini_response(context, question):
+def gemini_response(
+    context,
+    question
+):
     api_url = (
         f'https://generativelanguage.googleapis.com/v1beta/'
         f'models/{MODEL}:streamGenerateContent?alt=sse'
@@ -345,11 +400,11 @@ def gemini_response(context, question):
                     'text': (
                         'You are Retep AI. '
                         'Answer normally and conversationally. '
-                        'You may receive information retrieved from '
-                        'the user knowledge base. '
+                        'You may receive information retrieved '
+                        'from the user knowledge base. '
                         'Use that information when relevant. '
-                        'Do not pretend retrieved information contains '
-                        'something that it does not.'
+                        'Do not pretend retrieved information '
+                        'contains something that it does not.'
                     )
                 }
             ]
@@ -362,7 +417,9 @@ def gemini_response(context, question):
 
     request = urllib.request.Request(
         api_url,
-        data=json.dumps(body).encode('utf-8'),
+        data=json.dumps(
+            body
+        ).encode('utf-8'),
         headers={
             'x-goog-api-key': GEMINI_API_KEY,
             'Content-Type': 'application/json'
@@ -383,13 +440,17 @@ def gemini_response(context, question):
             if not line:
                 continue
 
-            if not line.startswith('data:'):
+            if not line.startswith(
+                'data:'
+            ):
                 continue
 
             data = line[5:].strip()
 
             try:
-                chunk = json.loads(data)
+                chunk = json.loads(
+                    data
+                )
 
             except json.JSONDecodeError:
                 continue
@@ -411,7 +472,9 @@ def gemini_response(context, question):
                 'parts',
                 []
             ):
-                text = part.get('text')
+                text = part.get(
+                    'text'
+                )
 
                 if text:
                     yield text
@@ -419,73 +482,37 @@ def gemini_response(context, question):
 
 # Groq response
 
-def groq_response(context, question):
-    api_url = (
-        'https://api.groq.com/openai/v1/chat/completions'
+def groq_response(
+    context,
+    question
+):
+    stream = (
+        groq_client
+        .chat
+        .completions
+        .create(
+            model=MODEL,
+            messages=groq_messages(
+                context,
+                question
+            ),
+            stream=True
+        )
     )
 
-    body = {
-        'model': MODEL,
-        'messages': groq_messages(
-            context,
-            question
-        ),
-        'stream': True
-    }
+    for chunk in stream:
+        if not chunk.choices:
+            continue
 
-    request = urllib.request.Request(
-        api_url,
-        data=json.dumps(body).encode('utf-8'),
-        headers={
-            'Authorization': f'Bearer {GROQ_API_KEY}',
-            'Content-Type': 'application/json'
-        },
-        method='POST'
-    )
+        text = (
+            chunk
+            .choices[0]
+            .delta
+            .content
+        )
 
-    with urllib.request.urlopen(
-        request,
-        timeout=120
-    ) as response:
-
-        for raw_line in response:
-            line = raw_line.decode(
-                'utf-8'
-            ).strip()
-
-            if not line:
-                continue
-
-            if not line.startswith('data:'):
-                continue
-
-            data = line[5:].strip()
-
-            if data == '[DONE]':
-                break
-
-            try:
-                chunk = json.loads(data)
-
-            except json.JSONDecodeError:
-                continue
-
-            choices = chunk.get(
-                'choices',
-                []
-            )
-
-            if not choices:
-                continue
-
-            text = (
-                choices[0]
-                .get('delta', {})
-                .get('content')
-            )
-
-            if text:
-                yield text
+        if text:
+            yield text
 
 
 # Response generator
@@ -507,7 +534,6 @@ def response_generator(
                 question
             )
 
-    # Show the actual API error body
     except urllib.error.HTTPError as e:
         error_body = e.read().decode(
             'utf-8',
@@ -524,13 +550,18 @@ def response_generator(
                 {}
             )
 
-            if isinstance(error, dict):
+            if isinstance(
+                error,
+                dict
+            ):
                 error_message = error.get(
                     'message',
                     error_body
                 )
             else:
-                error_message = str(error)
+                error_message = str(
+                    error
+                )
 
         except Exception:
             error_message = (
@@ -544,23 +575,35 @@ def response_generator(
             f'{error_message}'
         )
 
-    except urllib.error.URLError as e:
-        yield (
-            '\n\nConnection error: '
-            f'{e.reason}'
-        )
-
-    except TimeoutError:
-        yield (
-            '\n\nRequest timed out. '
-            'Please try again.'
-        )
-
     except Exception as e:
-        yield (
-            '\n\nUnexpected error: '
-            f'{str(e)}'
+        status_code = getattr(
+            e,
+            'status_code',
+            None
         )
+
+        body = getattr(
+            e,
+            'body',
+            None
+        )
+
+        if status_code:
+            if body:
+                yield (
+                    f'\n\nAPI Error {status_code}: '
+                    f'{body}'
+                )
+            else:
+                yield (
+                    f'\n\nAPI Error {status_code}: '
+                    f'{str(e)}'
+                )
+        else:
+            yield (
+                '\n\nAPI Error: '
+                f'{str(e)}'
+            )
 
 
 # Display chat history
@@ -584,8 +627,12 @@ if prompt := st.chat_input(
         'content': prompt
     })
 
-    with st.chat_message('user'):
-        st.markdown(prompt)
+    with st.chat_message(
+        'user'
+    ):
+        st.markdown(
+            prompt
+        )
 
     context = None
     collection = st.session_state.collection
@@ -599,7 +646,9 @@ if prompt := st.chat_input(
             )
 
             result = collection.query(
-                query_texts=[prompt],
+                query_texts=[
+                    prompt
+                ],
                 n_results=n_results
             )
 
@@ -623,7 +672,8 @@ if prompt := st.chat_input(
                 )
 
                 context_parts.append(
-                    f'Source: {filename}\n{chunk}'
+                    f'Source: {filename}\n'
+                    f'{chunk}'
                 )
 
             context = '\n\n'.join(
@@ -632,10 +682,13 @@ if prompt := st.chat_input(
 
         except Exception as e:
             st.warning(
-                f'Could not search the knowledge base: {e}'
+                'Could not search the '
+                f'knowledge base: {e}'
             )
 
-    with st.chat_message('assistant'):
+    with st.chat_message(
+        'assistant'
+    ):
         response = st.write_stream(
             response_generator(
                 context=context,
