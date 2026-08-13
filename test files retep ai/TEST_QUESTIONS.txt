@@ -1,0 +1,61 @@
+RETEP TEST PACK - QUESTIONS WITH ANSWERS
+
+1. Who is the project lead?
+Answer: Mira Chen.
+
+2. Where is Northstar being deployed?
+Answer: Cape Scott, British Columbia.
+
+3. What is the prototype nicknamed?
+Answer: Kestrel.
+
+4. What happened when the enclosure reached 71.2 C?
+Answer: Thermal protection activated, and the radio transmitter was disabled.
+
+5. What does error R17 mean?
+Answer: R17 indicates that thermal protection was activated.
+
+6. How many satellite modems are in inventory?
+Answer: 5.
+
+7. Where is the staging warehouse?
+Answer: Nanaimo, British Columbia.
+
+8. What is the thermal shutdown threshold?
+Answer: 70 C.
+
+9. How long should the backup battery last?
+Answer: 18 hours.
+
+10. Who handles logistics?
+Answer: Tomas Reyes.
+
+11. What is the approved budget?
+Answer: CAD 84,500.
+
+12. What generator model is mentioned in the legacy field note?
+Answer: G-240.
+
+13. Which files together tell you that Kestrel is going to Cape Scott and has an 18-hour battery target?
+Answer: engineering_brief.md identifies the prototype as Kestrel. northstar_notes.txt and northstar_budget_report.pdf identify Cape Scott as the deployment site and state the 18-hour backup-battery target. northstar_config.yaml also identifies Cape Scott and Kestrel.
+
+14. Compare the warning threshold in the Python file with the shutdown threshold in the engineering brief.
+Answer: thresholds.py sets the thermal warning threshold at 65 C and the thermal shutdown threshold at 70 C. engineering_brief.md says temperatures above 70 C should trigger thermal protection. The warning threshold is therefore 5 C below the shutdown threshold.
+
+15. What sensors are used by Northstar?
+Answer: SHT45 for air temperature, BMP390 for barometric pressure, an ultrasonic anemometer for wind speed, and a tipping-bucket gauge for rainfall.
+
+16. How often does the satellite uplink check in?
+Answer: Every 15 minutes.
+
+17. What happened after the enclosure cooled to 63.8 C?
+Answer: Thermal protection was cleared.
+
+18. Where is the backup generator stored?
+Answer: At the Nanaimo staging warehouse.
+
+19. Who is the field lead and who is the logistics lead?
+Answer: Mira Chen is the field lead, and Tomas Reyes is the logistics lead.
+
+20. What is the battery-low threshold in the Python configuration?
+Answer: 20 percent.

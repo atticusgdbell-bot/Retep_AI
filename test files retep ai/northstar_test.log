@@ -1,0 +1,8 @@
+2026-08-04 09:14:02 INFO boot sequence started
+2026-08-04 09:14:05 INFO satellite modem online
+2026-08-04 09:16:41 WARN enclosure temperature 68.4 C
+2026-08-04 09:18:03 WARN enclosure temperature 71.2 C
+2026-08-04 09:18:03 ERROR R17 thermal protection activated
+2026-08-04 09:18:04 INFO radio transmitter disabled
+2026-08-04 09:23:20 INFO enclosure temperature 63.8 C
+2026-08-04 09:23:20 INFO thermal protection cleared

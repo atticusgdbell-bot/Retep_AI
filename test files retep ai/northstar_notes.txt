@@ -1,0 +1,8 @@
+PROJECT NORTHSTAR NOTES
+
+Project Northstar is an autonomous weather-station project for remote coastal sites.
+The project lead is Mira Chen.
+The primary deployment site is Cape Scott, British Columbia.
+The planned field deployment date is November 3, 2026.
+The station is designed to run for 18 hours on its internal backup battery.
+Its satellite uplink checks in every 15 minutes.

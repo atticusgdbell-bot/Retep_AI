@@ -1,0 +1,12 @@
+project: Northstar
+prototype_nickname: Kestrel
+network:
+  satellite_checkin_minutes: 15
+  local_wifi_enabled: true
+deployment:
+  destination: Cape Scott
+  province: British Columbia
+  staging_warehouse: Nanaimo
+contacts:
+  field_lead: Mira Chen
+  logistics_lead: Tomas Reyes

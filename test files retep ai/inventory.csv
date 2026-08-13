@@ -1,0 +1,7 @@
+part,quantity,storage_location,unit_cost_cad
+ESP32-S3 controller,12,Bin A3,18.50
+SHT45 sensor,16,Bin B1,14.25
+BMP390 sensor,14,Bin B2,11.80
+Ultrasonic anemometer,6,Shelf C,129.00
+Satellite modem,5,Locked cabinet,215.00
+IP67 enclosure,8,Shelf D,74.50
