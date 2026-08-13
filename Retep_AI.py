@@ -114,7 +114,7 @@ if files and st.button('Process Files'):
                     continue
 
                 chunks = []
-                chunk_size = 1000
+                chunk_size = 300
                 overlap = 200
                 step = chunk_size - overlap
 
