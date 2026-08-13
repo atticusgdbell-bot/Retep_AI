@@ -1,6 +1,3 @@
-chromadb
+streamlit
 pypdf
-json
-hashLib
-uuid
-json
+chromadb
