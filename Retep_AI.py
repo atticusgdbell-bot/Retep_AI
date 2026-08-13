@@ -10,26 +10,54 @@ from pypdf import PdfReader
 from io import BytesIO
 
 
-# Config
+# API keys
 
-MODEL = 'gemini-3.5-flash'
+def get_secret(name):
+    try:
+        return st.secrets[name]
+    except KeyError:
+        return None
 
-API_URL = (
-    f'https://generativelanguage.googleapis.com/v1beta/'
-    f'models/{MODEL}:streamGenerateContent?alt=sse'
-)
 
-try:
-    API_KEY = st.secrets['GEMINI_API_KEY']
-except KeyError:
-    st.error('GEMINI_API_KEY is missing.')
+GEMINI_API_KEY = get_secret('GEMINI_API_KEY')
+GROQ_API_KEY = get_secret('GROQ_API_KEY')
+
+
+# Models
+
+MODELS = {}
+
+if GEMINI_API_KEY:
+    MODELS.update({
+        'Gemini 3.6 Flash': ('gemini', 'gemini-3.6-flash'),
+        'Gemini 3.5 Flash': ('gemini', 'gemini-3.5-flash'),
+        'Gemini 3.5 Flash-Lite': ('gemini', 'gemini-3.5-flash-lite')
+    })
+
+if GROQ_API_KEY:
+    MODELS.update({
+        'Groq GPT-OSS 120B': ('groq', 'openai/gpt-oss-120b'),
+        'Groq GPT-OSS 20B': ('groq', 'openai/gpt-oss-20b'),
+        'Groq Qwen 3.6 27B': ('groq', 'qwen/qwen3.6-27b')
+    })
+
+if not MODELS:
+    st.error('No API keys found. Add GEMINI_API_KEY or GROQ_API_KEY to Streamlit secrets.')
     st.stop()
 
 
 # Page
 
 st.title('Retep AI')
-st.caption(f'Current model: {MODEL}')
+
+selected_model = st.sidebar.selectbox(
+    'Model',
+    list(MODELS.keys())
+)
+
+PROVIDER, MODEL = MODELS[selected_model]
+
+st.caption(f'Current model: {selected_model}')
 
 
 # Session state
@@ -60,7 +88,9 @@ files = st.file_uploader(
     accept_multiple_files=True,
     key='knowledge_upload_v2'
 )
-# Read a file
+
+
+# Read files
 
 def read_file(file_bytes, filename):
     extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
@@ -77,11 +107,9 @@ def read_file(file_bytes, filename):
 
         return '\n\n'.join(pages)
 
-    # Most modern text files
     try:
         return file_bytes.decode('utf-8')
 
-    # Some older Windows text files
     except UnicodeDecodeError:
         try:
             return file_bytes.decode('cp1252')
@@ -178,27 +206,13 @@ if st.session_state.processed_files:
             st.write(name)
 
 
-# Convert chat history to Gemini format
+# Build current prompt
 
-def gemini_messages(context=None, question=None):
-    contents = []
+def build_current_prompt(context, question):
+    if not context:
+        return question
 
-    for message in st.session_state.messages[:-1]:
-        role = 'model' if message['role'] == 'assistant' else 'user'
-
-        contents.append(
-            {
-                'role': role,
-                'parts': [
-                    {
-                        'text': message['content']
-                    }
-                ]
-            }
-        )
-
-    if context:
-        current_prompt = f'''
+    return f'''
 Relevant information retrieved from the user's knowledge base:
 
 {context}
@@ -210,26 +224,77 @@ User message:
 Use the retrieved information when it is relevant.
 You may answer normally using your general knowledge when the retrieved information is not relevant.
 '''
-    else:
-        current_prompt = question
 
-    contents.append(
-        {
-            'role': 'user',
+
+# Gemini messages
+
+def gemini_messages(context, question):
+    contents = []
+
+    for message in st.session_state.messages[:-1]:
+        role = 'model' if message['role'] == 'assistant' else 'user'
+
+        contents.append({
+            'role': role,
             'parts': [
                 {
-                    'text': current_prompt
+                    'text': message['content']
                 }
             ]
-        }
-    )
+        })
+
+    contents.append({
+        'role': 'user',
+        'parts': [
+            {
+                'text': build_current_prompt(context, question)
+            }
+        ]
+    })
 
     return contents
 
 
-# Gemini streaming response
+# Groq messages
 
-def response_generator(context=None, question=None):
+def groq_messages(context, question):
+    messages = [
+        {
+            'role': 'system',
+            'content': (
+                'You are Retep AI. '
+                'Answer normally and conversationally. '
+                'You may receive information retrieved from '
+                'the user knowledge base. '
+                'Use that information when relevant. '
+                'Do not pretend retrieved information contains '
+                'something that it does not.'
+            )
+        }
+    ]
+
+    for message in st.session_state.messages[:-1]:
+        messages.append({
+            'role': message['role'],
+            'content': message['content']
+        })
+
+    messages.append({
+        'role': 'user',
+        'content': build_current_prompt(context, question)
+    })
+
+    return messages
+
+
+# Gemini response
+
+def gemini_response(context, question):
+    api_url = (
+        f'https://generativelanguage.googleapis.com/v1beta/'
+        f'models/{MODEL}:streamGenerateContent?alt=sse'
+    )
+
     body = {
         'systemInstruction': {
             'parts': [
@@ -250,45 +315,101 @@ def response_generator(context=None, question=None):
     }
 
     request = urllib.request.Request(
-        API_URL,
+        api_url,
         data=json.dumps(body).encode('utf-8'),
         headers={
-            'x-goog-api-key': API_KEY,
+            'x-goog-api-key': GEMINI_API_KEY,
             'Content-Type': 'application/json'
         },
         method='POST'
     )
 
+    with urllib.request.urlopen(request, timeout=120) as response:
+        for raw_line in response:
+            line = raw_line.decode('utf-8').strip()
+
+            if not line or not line.startswith('data:'):
+                continue
+
+            data = line[5:].strip()
+
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+            candidates = chunk.get('candidates', [])
+
+            if not candidates:
+                continue
+
+            content = candidates[0].get('content', {})
+
+            for part in content.get('parts', []):
+                text = part.get('text')
+
+                if text:
+                    yield text
+
+
+# Groq response
+
+def groq_response(context, question):
+    api_url = 'https://api.groq.com/openai/v1/chat/completions'
+
+    body = {
+        'model': MODEL,
+        'messages': groq_messages(context, question),
+        'stream': True
+    }
+
+    request = urllib.request.Request(
+        api_url,
+        data=json.dumps(body).encode('utf-8'),
+        headers={
+            'Authorization': f'Bearer {GROQ_API_KEY}',
+            'Content-Type': 'application/json'
+        },
+        method='POST'
+    )
+
+    with urllib.request.urlopen(request, timeout=120) as response:
+        for raw_line in response:
+            line = raw_line.decode('utf-8').strip()
+
+            if not line or not line.startswith('data:'):
+                continue
+
+            data = line[5:].strip()
+
+            if data == '[DONE]':
+                break
+
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+            choices = chunk.get('choices', [])
+
+            if not choices:
+                continue
+
+            text = choices[0].get('delta', {}).get('content')
+
+            if text:
+                yield text
+
+
+# Response generator
+
+def response_generator(context=None, question=None):
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            for raw_line in response:
-                line = raw_line.decode('utf-8').strip()
+        if PROVIDER == 'gemini':
+            yield from gemini_response(context, question)
 
-                if not line:
-                    continue
-
-                if not line.startswith('data:'):
-                    continue
-
-                data = line[5:].strip()
-
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
-
-                candidates = chunk.get('candidates', [])
-
-                if not candidates:
-                    continue
-
-                content = candidates[0].get('content', {})
-
-                for part in content.get('parts', []):
-                    text = part.get('text')
-
-                    if text:
-                        yield text
+        elif PROVIDER == 'groq':
+            yield from groq_response(context, question)
 
     except urllib.error.HTTPError as e:
         try:
@@ -326,12 +447,10 @@ for message in st.session_state.messages:
 # Chat
 
 if prompt := st.chat_input('Ask me something...'):
-    st.session_state.messages.append(
-        {
-            'role': 'user',
-            'content': prompt
-        }
-    )
+    st.session_state.messages.append({
+        'role': 'user',
+        'content': prompt
+    })
 
     with st.chat_message('user'):
         st.markdown(prompt)
@@ -382,9 +501,7 @@ if prompt := st.chat_input('Ask me something...'):
             )
         )
 
-    st.session_state.messages.append(
-        {
-            'role': 'assistant',
-            'content': response
-        }
-    )
+    st.session_state.messages.append({
+        'role': 'assistant',
+        'content': response
+    })
