@@ -411,21 +411,31 @@ def response_generator(context=None, question=None):
         elif PROVIDER == 'groq':
             yield from groq_response(context, question)
 
-    except urllib.error.HTTPError as e:
-        try:
-            error_body = e.read().decode('utf-8')
-            error_data = json.loads(error_body)
+except urllib.error.HTTPError as e:
+    error_body = e.read().decode(
+        'utf-8',
+        errors='replace'
+    )
 
-            error_message = (
-                error_data
-                .get('error', {})
-                .get('message', 'Unknown API error')
+    try:
+        error_data = json.loads(error_body)
+        error = error_data.get('error', {})
+
+        if isinstance(error, dict):
+            error_message = error.get(
+                'message',
+                error_body
             )
+        else:
+            error_message = str(error)
 
-        except Exception:
-            error_message = f'HTTP error {e.code}'
+    except Exception:
+        error_message = error_body
 
-        yield f'\n\nAPI Error {e.code}: {error_message}'
+    yield (
+        f'\n\nAPI Error {e.code}: '
+        f'{error_message}'
+    )
 
     except urllib.error.URLError as e:
         yield f'\n\nConnection error: {e.reason}'
