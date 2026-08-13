@@ -1,0 +1,6 @@
+chromadb
+pypdf
+json
+hashLib
+uuid
+json
