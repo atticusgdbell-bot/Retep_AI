@@ -44,10 +44,8 @@ if 'collection_name' not in st.session_state:
     st.session_state.collection_name = 'docs_' + uuid.uuid4().hex[:12]
 
 if 'collection' not in st.session_state:
-    st.session_state.collection = (
-        st.session_state.chroma_client.create_collection(
-            name=st.session_state.collection_name
-        )
+    st.session_state.collection = st.session_state.chroma_client.create_collection(
+        name=st.session_state.collection_name
     )
 
 if 'processed_files' not in st.session_state:
@@ -58,9 +56,37 @@ if 'processed_files' not in st.session_state:
 
 files = st.file_uploader(
     'Upload files',
-    type=['txt', 'log', 'pdf'],
     accept_multiple_files=True
 )
+
+
+# Read a file
+
+def read_file(file_bytes, filename):
+    extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+    if extension == 'pdf':
+        reader = PdfReader(BytesIO(file_bytes))
+        pages = []
+
+        for page in reader.pages:
+            page_text = page.extract_text() or ''
+
+            if page_text.strip():
+                pages.append(page_text)
+
+        return '\n\n'.join(pages)
+
+    # Most modern text files
+    try:
+        return file_bytes.decode('utf-8')
+
+    # Some older Windows text files
+    except UnicodeDecodeError:
+        try:
+            return file_bytes.decode('cp1252')
+        except UnicodeDecodeError:
+            return file_bytes.decode('utf-8', errors='replace')
 
 
 # Process files
@@ -81,30 +107,10 @@ if files and st.button('Process Files'):
                     skipped_files.append(file.name)
                     continue
 
-                extension = file.name.rsplit('.', 1)[-1].lower()
-
-                if extension == 'pdf':
-                    reader = PdfReader(BytesIO(file_bytes))
-                    pages = []
-
-                    for page in reader.pages:
-                        page_text = page.extract_text() or ''
-
-                        if page_text.strip():
-                            pages.append(page_text)
-
-                    text = '\n\n'.join(pages)
-
-                else:
-                    text = file_bytes.decode(
-                        'utf-8',
-                        errors='replace'
-                    )
+                text = read_file(file_bytes, file.name)
 
                 if not text.strip():
-                    st.warning(
-                        f'No readable text found in {file.name}.'
-                    )
+                    st.warning(f'No readable text found in {file.name}.')
                     continue
 
                 chunks = []
@@ -143,9 +149,7 @@ if files and st.button('Process Files'):
                 added_files.append(file.name)
 
             except Exception as e:
-                st.error(
-                    f'Could not process {file.name}: {e}'
-                )
+                st.error(f'Could not process {file.name}: {e}')
 
     if added_files:
         st.success(
@@ -163,9 +167,7 @@ if files and st.button('Process Files'):
 # Knowledge base status
 
 if st.session_state.processed_files:
-    file_names = list(
-        st.session_state.processed_files.values()
-    )
+    file_names = list(st.session_state.processed_files.values())
 
     st.caption(
         f'Knowledge base: {len(file_names)} file(s)'
@@ -181,13 +183,8 @@ if st.session_state.processed_files:
 def gemini_messages(context=None, question=None):
     contents = []
 
-    # The final session message is the current question.
     for message in st.session_state.messages[:-1]:
-        role = (
-            'model'
-            if message['role'] == 'assistant'
-            else 'user'
-        )
+        role = 'model' if message['role'] == 'assistant' else 'user'
 
         contents.append(
             {
@@ -249,10 +246,7 @@ def response_generator(context=None, question=None):
                 }
             ]
         },
-        'contents': gemini_messages(
-            context,
-            question
-        )
+        'contents': gemini_messages(context, question)
     }
 
     request = urllib.request.Request(
@@ -266,10 +260,7 @@ def response_generator(context=None, question=None):
     )
 
     try:
-        with urllib.request.urlopen(
-            request,
-            timeout=120
-        ) as response:
+        with urllib.request.urlopen(request, timeout=120) as response:
             for raw_line in response:
                 line = raw_line.decode('utf-8').strip()
 
@@ -291,10 +282,7 @@ def response_generator(context=None, question=None):
                 if not candidates:
                     continue
 
-                content = candidates[0].get(
-                    'content',
-                    {}
-                )
+                content = candidates[0].get('content', {})
 
                 for part in content.get('parts', []):
                     text = part.get('text')
@@ -310,36 +298,22 @@ def response_generator(context=None, question=None):
             error_message = (
                 error_data
                 .get('error', {})
-                .get(
-                    'message',
-                    'Unknown API error'
-                )
+                .get('message', 'Unknown API error')
             )
+
         except Exception:
             error_message = f'HTTP error {e.code}'
 
-        yield (
-            f'\n\nAPI Error {e.code}: '
-            f'{error_message}'
-        )
+        yield f'\n\nAPI Error {e.code}: {error_message}'
 
     except urllib.error.URLError as e:
-        yield (
-            '\n\nConnection error: '
-            f'{e.reason}'
-        )
+        yield f'\n\nConnection error: {e.reason}'
 
     except TimeoutError:
-        yield (
-            '\n\nRequest timed out. '
-            'Please try again.'
-        )
+        yield '\n\nRequest timed out. Please try again.'
 
     except Exception as e:
-        yield (
-            '\n\nUnexpected error: '
-            f'{str(e)}'
-        )
+        yield f'\n\nUnexpected error: {str(e)}'
 
 
 # Display chat history
@@ -366,13 +340,9 @@ if prompt := st.chat_input('Ask me something...'):
     collection = st.session_state.collection
     number_of_chunks = collection.count()
 
-    # Search the knowledge base if it contains anything.
     if number_of_chunks > 0:
         try:
-            n_results = min(
-                5,
-                number_of_chunks
-            )
+            n_results = min(5, number_of_chunks)
 
             result = collection.query(
                 query_texts=[prompt],
@@ -397,9 +367,7 @@ if prompt := st.chat_input('Ask me something...'):
                     f'Source: {filename}\n{chunk}'
                 )
 
-            context = '\n\n'.join(
-                context_parts
-            )
+            context = '\n\n'.join(context_parts)
 
         except Exception as e:
             st.warning(
