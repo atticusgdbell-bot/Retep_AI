@@ -42,7 +42,10 @@ if GROQ_API_KEY:
     })
 
 if not MODELS:
-    st.error('No API keys found. Add GEMINI_API_KEY or GROQ_API_KEY to Streamlit secrets.')
+    st.error(
+        'No API keys found. Add GEMINI_API_KEY or '
+        'GROQ_API_KEY to Streamlit secrets.'
+    )
     st.stop()
 
 
@@ -72,8 +75,10 @@ if 'collection_name' not in st.session_state:
     st.session_state.collection_name = 'docs_' + uuid.uuid4().hex[:12]
 
 if 'collection' not in st.session_state:
-    st.session_state.collection = st.session_state.chroma_client.create_collection(
-        name=st.session_state.collection_name
+    st.session_state.collection = (
+        st.session_state.chroma_client.create_collection(
+            name=st.session_state.collection_name
+        )
     )
 
 if 'processed_files' not in st.session_state:
@@ -93,7 +98,11 @@ files = st.file_uploader(
 # Read files
 
 def read_file(file_bytes, filename):
-    extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    extension = (
+        filename.rsplit('.', 1)[-1].lower()
+        if '.' in filename
+        else ''
+    )
 
     if extension == 'pdf':
         reader = PdfReader(BytesIO(file_bytes))
@@ -113,8 +122,12 @@ def read_file(file_bytes, filename):
     except UnicodeDecodeError:
         try:
             return file_bytes.decode('cp1252')
+
         except UnicodeDecodeError:
-            return file_bytes.decode('utf-8', errors='replace')
+            return file_bytes.decode(
+                'utf-8',
+                errors='replace'
+            )
 
 
 # Process files
@@ -129,16 +142,23 @@ if files and st.button('Process Files'):
         for file in files:
             try:
                 file_bytes = file.getvalue()
-                file_hash = hashlib.sha256(file_bytes).hexdigest()
+                file_hash = hashlib.sha256(
+                    file_bytes
+                ).hexdigest()
 
                 if file_hash in st.session_state.processed_files:
                     skipped_files.append(file.name)
                     continue
 
-                text = read_file(file_bytes, file.name)
+                text = read_file(
+                    file_bytes,
+                    file.name
+                )
 
                 if not text.strip():
-                    st.warning(f'No readable text found in {file.name}.')
+                    st.warning(
+                        f'No readable text found in {file.name}.'
+                    )
                     continue
 
                 chunks = []
@@ -146,8 +166,14 @@ if files and st.button('Process Files'):
                 overlap = 200
                 step = chunk_size - overlap
 
-                for i in range(0, len(text), step):
-                    chunk = text[i:i + chunk_size].strip()
+                for i in range(
+                    0,
+                    len(text),
+                    step
+                ):
+                    chunk = text[
+                        i:i + chunk_size
+                    ].strip()
 
                     if chunk:
                         chunks.append(chunk)
@@ -172,12 +198,17 @@ if files and st.button('Process Files'):
                     metadatas=metadatas
                 )
 
-                st.session_state.processed_files[file_hash] = file.name
+                st.session_state.processed_files[
+                    file_hash
+                ] = file.name
+
                 total_new_chunks += len(chunks)
                 added_files.append(file.name)
 
             except Exception as e:
-                st.error(f'Could not process {file.name}: {e}')
+                st.error(
+                    f'Could not process {file.name}: {e}'
+                )
 
     if added_files:
         st.success(
@@ -195,7 +226,9 @@ if files and st.button('Process Files'):
 # Knowledge base status
 
 if st.session_state.processed_files:
-    file_names = list(st.session_state.processed_files.values())
+    file_names = list(
+        st.session_state.processed_files.values()
+    )
 
     st.caption(
         f'Knowledge base: {len(file_names)} file(s)'
@@ -232,7 +265,11 @@ def gemini_messages(context, question):
     contents = []
 
     for message in st.session_state.messages[:-1]:
-        role = 'model' if message['role'] == 'assistant' else 'user'
+        role = (
+            'model'
+            if message['role'] == 'assistant'
+            else 'user'
+        )
 
         contents.append({
             'role': role,
@@ -247,7 +284,10 @@ def gemini_messages(context, question):
         'role': 'user',
         'parts': [
             {
-                'text': build_current_prompt(context, question)
+                'text': build_current_prompt(
+                    context,
+                    question
+                )
             }
         ]
     })
@@ -281,7 +321,10 @@ def groq_messages(context, question):
 
     messages.append({
         'role': 'user',
-        'content': build_current_prompt(context, question)
+        'content': build_current_prompt(
+            context,
+            question
+        )
     })
 
     return messages
@@ -311,7 +354,10 @@ def gemini_response(context, question):
                 }
             ]
         },
-        'contents': gemini_messages(context, question)
+        'contents': gemini_messages(
+            context,
+            question
+        )
     }
 
     request = urllib.request.Request(
@@ -324,28 +370,47 @@ def gemini_response(context, question):
         method='POST'
     )
 
-    with urllib.request.urlopen(request, timeout=120) as response:
-        for raw_line in response:
-            line = raw_line.decode('utf-8').strip()
+    with urllib.request.urlopen(
+        request,
+        timeout=120
+    ) as response:
 
-            if not line or not line.startswith('data:'):
+        for raw_line in response:
+            line = raw_line.decode(
+                'utf-8'
+            ).strip()
+
+            if not line:
+                continue
+
+            if not line.startswith('data:'):
                 continue
 
             data = line[5:].strip()
 
             try:
                 chunk = json.loads(data)
+
             except json.JSONDecodeError:
                 continue
 
-            candidates = chunk.get('candidates', [])
+            candidates = chunk.get(
+                'candidates',
+                []
+            )
 
             if not candidates:
                 continue
 
-            content = candidates[0].get('content', {})
+            content = candidates[0].get(
+                'content',
+                {}
+            )
 
-            for part in content.get('parts', []):
+            for part in content.get(
+                'parts',
+                []
+            ):
                 text = part.get('text')
 
                 if text:
@@ -355,11 +420,16 @@ def gemini_response(context, question):
 # Groq response
 
 def groq_response(context, question):
-    api_url = 'https://api.groq.com/openai/v1/chat/completions'
+    api_url = (
+        'https://api.groq.com/openai/v1/chat/completions'
+    )
 
     body = {
         'model': MODEL,
-        'messages': groq_messages(context, question),
+        'messages': groq_messages(
+            context,
+            question
+        ),
         'stream': True
     }
 
@@ -373,11 +443,20 @@ def groq_response(context, question):
         method='POST'
     )
 
-    with urllib.request.urlopen(request, timeout=120) as response:
-        for raw_line in response:
-            line = raw_line.decode('utf-8').strip()
+    with urllib.request.urlopen(
+        request,
+        timeout=120
+    ) as response:
 
-            if not line or not line.startswith('data:'):
+        for raw_line in response:
+            line = raw_line.decode(
+                'utf-8'
+            ).strip()
+
+            if not line:
+                continue
+
+            if not line.startswith('data:'):
                 continue
 
             data = line[5:].strip()
@@ -387,15 +466,23 @@ def groq_response(context, question):
 
             try:
                 chunk = json.loads(data)
+
             except json.JSONDecodeError:
                 continue
 
-            choices = chunk.get('choices', [])
+            choices = chunk.get(
+                'choices',
+                []
+            )
 
             if not choices:
                 continue
 
-            text = choices[0].get('delta', {}).get('content')
+            text = (
+                choices[0]
+                .get('delta', {})
+                .get('content')
+            )
 
             if text:
                 yield text
@@ -403,60 +490,95 @@ def groq_response(context, question):
 
 # Response generator
 
-def response_generator(context=None, question=None):
+def response_generator(
+    context=None,
+    question=None
+):
     try:
         if PROVIDER == 'gemini':
-            yield from gemini_response(context, question)
+            yield from gemini_response(
+                context,
+                question
+            )
 
         elif PROVIDER == 'groq':
-            yield from groq_response(context, question)
+            yield from groq_response(
+                context,
+                question
+            )
 
-except urllib.error.HTTPError as e:
-    error_body = e.read().decode(
-        'utf-8',
-        errors='replace'
-    )
+    # Show the actual API error body
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode(
+            'utf-8',
+            errors='replace'
+        )
 
-    try:
-        error_data = json.loads(error_body)
-        error = error_data.get('error', {})
-
-        if isinstance(error, dict):
-            error_message = error.get(
-                'message',
+        try:
+            error_data = json.loads(
                 error_body
             )
-        else:
-            error_message = str(error)
 
-    except Exception:
-        error_message = error_body
+            error = error_data.get(
+                'error',
+                {}
+            )
 
-    yield (
-        f'\n\nAPI Error {e.code}: '
-        f'{error_message}'
-    )
+            if isinstance(error, dict):
+                error_message = error.get(
+                    'message',
+                    error_body
+                )
+            else:
+                error_message = str(error)
+
+        except Exception:
+            error_message = (
+                error_body
+                if error_body
+                else f'HTTP error {e.code}'
+            )
+
+        yield (
+            f'\n\nAPI Error {e.code}: '
+            f'{error_message}'
+        )
 
     except urllib.error.URLError as e:
-        yield f'\n\nConnection error: {e.reason}'
+        yield (
+            '\n\nConnection error: '
+            f'{e.reason}'
+        )
 
     except TimeoutError:
-        yield '\n\nRequest timed out. Please try again.'
+        yield (
+            '\n\nRequest timed out. '
+            'Please try again.'
+        )
 
     except Exception as e:
-        yield f'\n\nUnexpected error: {str(e)}'
+        yield (
+            '\n\nUnexpected error: '
+            f'{str(e)}'
+        )
 
 
 # Display chat history
 
 for message in st.session_state.messages:
-    with st.chat_message(message['role']):
-        st.markdown(message['content'])
+    with st.chat_message(
+        message['role']
+    ):
+        st.markdown(
+            message['content']
+        )
 
 
 # Chat
 
-if prompt := st.chat_input('Ask me something...'):
+if prompt := st.chat_input(
+    'Ask me something...'
+):
     st.session_state.messages.append({
         'role': 'user',
         'content': prompt
@@ -471,15 +593,23 @@ if prompt := st.chat_input('Ask me something...'):
 
     if number_of_chunks > 0:
         try:
-            n_results = min(5, number_of_chunks)
+            n_results = min(
+                5,
+                number_of_chunks
+            )
 
             result = collection.query(
                 query_texts=[prompt],
                 n_results=n_results
             )
 
-            retrieved_chunks = result['documents'][0]
-            retrieved_metadata = result['metadatas'][0]
+            retrieved_chunks = (
+                result['documents'][0]
+            )
+
+            retrieved_metadata = (
+                result['metadatas'][0]
+            )
 
             context_parts = []
 
@@ -496,7 +626,9 @@ if prompt := st.chat_input('Ask me something...'):
                     f'Source: {filename}\n{chunk}'
                 )
 
-            context = '\n\n'.join(context_parts)
+            context = '\n\n'.join(
+                context_parts
+            )
 
         except Exception as e:
             st.warning(
